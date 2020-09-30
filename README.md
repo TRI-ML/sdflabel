@@ -11,8 +11,44 @@ Official [PyTorch](https://pytorch.org/) implementation of the CVPR 2020 paper "
 <img width="60%" src="/media/figs/sdflabel-teaser.gif"/>
 </a>
 
-## Code
-Code is coming soon.
+
+## Setting up your environment
+To set up the environment using conda, use the following commands:
+```
+conda env create -n sdflabel -f environment.yml
+conda activate sdflabel
+```
+
+## Optimization demo
+To run the optimization demo first download the data folder using the following [link](https://pytorch.org/).
+
+Then, run the following command:
+```
+python main.py config/config_train.ini --train
+```
+
+## Training CSS network
+To train the CSS network run the following command:
+```
+python main.py configs/config_refine.ini --demo
+```
+
+### Dataset format
+The dataset of crops represents a collection of detected *RGB patches (CSS input)*, corresponding *NOCS patches (CSS output)*, and a JSON DB file comprising the patch relevant information, most importantly *SDF latent vector* corresponding to the depicted 3D model.
+The example of the dataset is located in the *data/crops_db* folder.
+
+## Optimization
+To run optimization on the detected frames run the following command:
+```
+python main.py config/config_refine.ini --refine
+```
+Please modify the config file to specify the path to KITTI. Upon completion, autolabels will be stored to the *output* folder specified in the config file (*output* -> *labels*).
+To evaluate the generated dump, run:
+```
+python main.py config/config_refine.ini --evaluate
+```
+
+
 
 ## License
 

@@ -1,0 +1,18 @@
+# Folders
+log/
+data/
+demo/
+.idea/
+
+# Extensions
+*.pkl
+*/*.pyc
+*/*.so*
+*/**/__pycache__
+*/**/*.dylib*
+*/**/*.pyc
+*/**/*.pyd
+*/**/*.so*
+*/**/**/*.pyc
+*/**/**/**/*.pyc
+*/**/**/**/**/*.pyc
