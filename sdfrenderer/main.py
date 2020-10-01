@@ -10,7 +10,7 @@ from grid import Grid3D
 import deepsdf.workspace as dsdf_ws
 
 
-def render_model(model_path, primitives, precision):
+def render_model(model_path, primitives, precision, output_dir='renderer/output'):
     """
     Render a colored point cloud
 
@@ -55,10 +55,11 @@ def render_model(model_path, primitives, precision):
     rendered_image = rendering[0]
 
     # Save image
-    vis.save_image(rendered_image['color'], os.path.join('output', 'demo.png'))
+    os.makedirs(output_dir, exist_ok=True)
+    vis.save_image(rendered_image['color'], os.path.join(output_dir, 'demo_cad.png'))
 
 
-def render_sdf(path_dsdf, primitives, precision):
+def render_sdf(path_dsdf, primitives, precision, output_dir='renderer/output'):
     """
     Render the output of the DeepSDF net
 
@@ -80,7 +81,7 @@ def render_sdf(path_dsdf, primitives, precision):
     camera_pose_dcm[:3, 3] = trans
 
     # Load DSDF
-    dsdf, latent_size = dsdf_ws.setup_dsdf(path_dsdf, precision)
+    dsdf, latent_size = dsdf_ws.setup_dsdf(path_dsdf, precision=precision)
     dsdf = dsdf.to(device)
 
     # Create 3D grid and form DeepSDF input
@@ -94,7 +95,7 @@ def render_sdf(path_dsdf, primitives, precision):
     pred_sdf_grid, inv_scale = dsdf(inputs)
 
     # Get surface points using 0-isosurface projection
-    pc_dsdf, nocs_dsdf, normals_dsdf = grid_3d.get_surface_points(pred_sdf_grid)
+    pcd_dsdf, nocs_dsdf, normals_dsdf = grid_3d.get_surface_points(pred_sdf_grid)
 
     # Create a renderer instance
     crop_size = (200, 100)
@@ -102,7 +103,7 @@ def render_sdf(path_dsdf, primitives, precision):
 
     # Render SDF
     rendering = renderer(
-        pc_dsdf,
+        pcd_dsdf,
         normals_dsdf,
         normals_dsdf,
         camera_pose_dcm.to(device),
@@ -116,7 +117,8 @@ def render_sdf(path_dsdf, primitives, precision):
     rendered_image = rendering[0]
 
     # Save image
-    vis.save_image(rendered_image['color'], os.path.join('renderer/output', 'demo.png'))
+    os.makedirs(output_dir, exist_ok=True)
+    vis.save_image(rendered_image['color'], os.path.join(output_dir, 'demo_dsdf.png'))
 
 
 def main():

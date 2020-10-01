@@ -13,14 +13,15 @@ Official [PyTorch](https://pytorch.org/) implementation of the SDF-Renderer used
 
 
 ## Running the Code
-To test the renderer, you need to download the pretrained DeepSDF network:
-Then you can run the code using:
+Download the [data folder](https://drive.google.com/file/d/1cvLeXDhaghjzCK-gmnQbxh8rTvd71miw/view?usp=sharing) containing the pretrained DeepSDF network.
+To test the renderer using the pretrained DeepSDF network, run the following code:
 ```
-main.py --model data/deepsdf.pt
+python main.py --model ../data/nets/deepsdf.pt
 ```
-Alternatively you can use just the surfel part of the renderer to render 3D models:
+Alternatively you can use just the surfel part of the renderer to render 3D models. 
+To test it, specify the path to the provided car model from the [HomebrewedDB dataset](http://campar.in.tum.de/personal/ilic/homebreweddb/index.html).
 ```
-main.py --model data/car.ply
+python main.py --model ../data/db/car.ply 
 ```
 
 ## Zero-Isosurface Projection
@@ -31,11 +32,11 @@ main.py --model data/car.ply
 
 To obtain surface points we apply zero-isosurface projection on the grid points using regressed by DeepSDF SDF values.
 ```
-    # Get DeepSDF output
-    pred_sdf_grid = dsdf(inputs)
+# Get DeepSDF output
+pred_sdf_grid = dsdf(inputs)
 
-    # Get surface points using 0-isosurface projection
-    points, nocs, normals = grid_3d.get_surface_points(pred_sdf_grid)
+# Get surface points using 0-isosurface projection
+points, nocs, normals = grid_3d.get_surface_points(pred_sdf_grid)
 ```
 ## License
 

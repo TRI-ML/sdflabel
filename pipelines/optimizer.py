@@ -35,7 +35,7 @@ def get_opt_params(params, device):
     # optim_params += [{'params': params['quat'], 'lr': 0.005}]
     optim_params += [{'params': params['trans'], 'lr': 0.01}]
     optim_params += [{'params': params['scale'], 'lr': 0.01}]
-    optim_params += [{'params': params['latent'], 'lr': 0.03}]
+    optim_params += [{'params': params['latent'], 'lr': 0.00003}]
 
     return params, optim_params
 
@@ -53,13 +53,13 @@ class Optimizer:
         self.weights = weights
         self.rot = rot
 
-    def optimize(self, iters_optim, nocs_pred, pc_frustum_np, dsdf, grid, K, crop_size, viz_type=None, frame_vis=None):
+    def optimize(self, iters_optim, nocs_pred, pcd_frustum_np, dsdf, grid, K, crop_size, viz_type=None, frame_vis=None):
         """
         Optimization loop
         Args:
             iters_optim (int): Number of iterations
             nocs_pred (torch.Tensor): CSS network prediction
-            pc_frustum_np (np.array): LIDAR point cloud (N,3)
+            pcd_frustum_np (np.array): LIDAR point cloud (N,3)
             dsdf: DeepSDF network
             grid: Grid object
             K (torch.Tensor): Camera matrix (3,3)
@@ -81,7 +81,7 @@ class Optimizer:
             self.solver.zero_grad()
 
             # Apply inverse scale to scene to not screw up renderer
-            pc_frustum = (torch.Tensor(pc_frustum_np).to(self.device) / self.params['scale']).to(self.precision)
+            pcd_frustum = (torch.Tensor(pcd_frustum_np).to(self.device) / self.params['scale']).to(self.precision)
 
             # Build pose
             render_pose = torch.eye(4).to(self.device, self.precision)
@@ -101,14 +101,14 @@ class Optimizer:
             pred_sdf_grid, inv_scale = dsdf(inputs)
 
             # Surface point/normal extraction
-            pc_dsdf, _, normals_dsdf = grid.get_surface_points(pred_sdf_grid)
+            pcd_dsdf, _, normals_dsdf = grid.get_surface_points(pred_sdf_grid)
 
             # Zero the gradients from the surface point estimation
             self.solver.zero_grad()
 
             # Render surface points and normals and backproject
             rendering, points = self.renderer(
-                pc_dsdf,
+                pcd_dsdf,
                 normals_dsdf,
                 normals_dsdf,
                 render_pose,
@@ -121,15 +121,15 @@ class Optimizer:
                 output_points=True,
                 output_mask=True
             )
-            pc_dsdf_trans, clrs_dsdf = points['xyzf'], points['rgbf']
+            pcd_dsdf_trans, clrs_dsdf = points['xyzf'], points['rgbf']
 
             # Compute nearest neighbors and threshold based on metric distance
-            if (pc_dsdf_trans.nelement() == 0) or (pc_frustum.nelement() == 0):
+            if (pcd_dsdf_trans.nelement() == 0) or (pcd_frustum.nelement() == 0):
                 print('Skip frame')
                 continue
 
             # 3D Loss
-            loss_3d, dists_3d, idxs_3d = self.compute_loss_3d(pc_dsdf_trans, pc_frustum)
+            loss_3d, dists_3d, idxs_3d = self.compute_loss_3d(pcd_dsdf_trans, pcd_frustum)
 
             # Projective NOCS loss (masked)
             target_2d = F.interpolate(
@@ -157,28 +157,28 @@ class Optimizer:
             self.solver.step()
 
             # Visualize
-            if viz_type:
-                viztools.plot_full_frame(frame_vis, rendering['color'])
-                viztools.plot_patches(rendering['normals'], target_2d)
+            if viz_type == '2d' or viz_type == '3d':
+                viztools.plot_full_frame(frame_vis, rendering['normals'])
+                viztools.plot_patches(rendering['color'], target_2d)
             if viz_type == '3d':
-                viztools.plot_3d(viz, pc_frustum, pc_frustum, pc_dsdf_trans, clrs_dsdf, dists_3d, idxs_3d, interactive=False)
+                viztools.plot_3d(viz, pcd_frustum, pcd_frustum, pcd_dsdf_trans, clrs_dsdf, dists_3d, idxs_3d, interactive=False)
 
-    def compute_loss_3d(self, pc_dsdf_trans, pc_frustum, threshold=0.2):
+    def compute_loss_3d(self, pcd_dsdf_trans, pcd_frustum, threshold=0.2):
         """
         Compute 3D loss between the estimated and LIDAR point clouds computed as a mean of point pair distances between 2 point clouds
         Args:
-            pc_dsdf_trans (torch.Tensor): Estimated point cloud (N,3)
-            pc_frustum (torch.Tensor): LIDAR point cloud (N,3)
+            pcd_dsdf_trans (torch.Tensor): Estimated point cloud (N,3)
+            pcd_frustum (torch.Tensor): LIDAR point cloud (N,3)
             threshold (float): maximum allowed distance between the point pairs to be considered for the loss
 
         Returns: 3D loss value
 
         """
-        if (pc_dsdf_trans.nelement() != 0) and (pc_frustum.nelement() != 0):
+        if (pcd_dsdf_trans.nelement() != 0) and (pcd_frustum.nelement() != 0):
 
             # Estimate nearest neighbors (distances and ids) between given point clouds
-            kdtree = KDTree(pc_frustum.detach().cpu().numpy())
-            dists, idxs = kdtree.query(pc_dsdf_trans.detach().cpu().numpy())
+            kdtree = KDTree(pcd_frustum.detach().cpu().numpy())
+            dists, idxs = kdtree.query(pcd_dsdf_trans.detach().cpu().numpy())
 
             # Reformat distances and idxs to 1-dim array
             idxs = np.asarray([val for sublist in idxs for val in sublist])
@@ -186,7 +186,7 @@ class Optimizer:
 
             # Measure distances between filtered point pairs
             close_by = dists < threshold / self.params['scale'][0].item()
-            dists_thres = (pc_frustum[idxs[close_by]] - pc_dsdf_trans[close_by]).norm(p=2, dim=1)
+            dists_thres = (pcd_frustum[idxs[close_by]] - pcd_dsdf_trans[close_by]).norm(p=2, dim=1)
 
             # Check if point pairs exist
             if (dists_thres.nelement() != 0):

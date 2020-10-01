@@ -48,26 +48,26 @@ def plot_full_frame(frame, rendering_normals, overlay_alpha=0.1):
     cv2.waitKey(10)
 
 
-def plot_3d(viz, pc_1, clr_1, pc_2, clr_2, dists, idxs, interactive=False):
+def plot_3d(viz, pcd_1, clr_1, pcd_2, clr_2, dists, idxs, interactive=False):
     """
     Visualize optimization in 3D
     Args:
         viz: Open3D visualizer object
-        pc_1 (torch.Tensor): First point cloud (N, 3)
+        pcd_1 (torch.Tensor): First point cloud (N, 3)
         clr_1 (torch.Tensor): Colors of the first point cloud (N, 3)
-        pc_2 (torch.Tensor): Second point cloud (N, 3)
+        pcd_2 (torch.Tensor): Second point cloud (N, 3)
         clr_2 (torch.Tensor): Colors of the second point cloud (N, 3)
         dists (np.array): Distances between the correspondence points (N)
         idxs (np.array): Ids between the correspondence points (N)
         interactive (bool): activate interactive visualization mode
     """
     pcd_ren, pcd_patch = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
-    pcd_patch.points = o3d.utility.Vector3dVector(pc_1.detach().cpu())
+    pcd_patch.points = o3d.utility.Vector3dVector(pcd_1.detach().cpu())
     pcd_patch.colors = o3d.utility.Vector3dVector(clr_1.detach().cpu().numpy())
-    pcd_ren.points = o3d.utility.Vector3dVector(pc_2.detach().cpu().numpy())
+    pcd_ren.points = o3d.utility.Vector3dVector(pcd_2.detach().cpu().numpy())
     pcd_ren.colors = o3d.utility.Vector3dVector(clr_2.detach().cpu().numpy())
     heat_dists = rtools.build_heatmap(dists, min=0).astype(np.float32)
-    line_set = rtools.build_correspondence_lineset(pc_2.detach().cpu(), pc_1.detach().cpu(), idxs)
+    line_set = rtools.build_correspondence_lineset(pcd_2.detach().cpu(), pcd_1.detach().cpu(), idxs)
     if heat_dists.size != 0:
         line_set.colors = o3d.utility.Vector3dVector(np.array(heat_dists.squeeze()))
 
@@ -92,11 +92,11 @@ def plot_3d_final(lidar, cam_T, scaled_points, est_label, gt_label=None):
     """
     Visualize the final labelling result in 3D
     Args:
-        lidar: Lidar point cloud
-        cam_T: Pose matrix
-        scaled_points: Estimated shape point cloud
-        est_label: Estimated label in the KITTI format
-        gt_label: GT label in the KITTI format
+        lidar (np.array): LIDAR point cloud (N,3)
+        cam_T (np.array): Pose matrix (4,4)
+        scaled_points (np.array): Estimated shape point cloud (N,3)
+        est_label (dict): Estimated label in the KITTI format
+        gt_label (dict): GT label in the KITTI format
     """
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(lidar)

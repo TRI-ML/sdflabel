@@ -19,7 +19,7 @@ class Grid3D:
         self.points = Variable(self.generate_point_grid(density).to(device, precision), requires_grad=True)
         self.points.register_hook(save_grad('grid_points'))
 
-    def generate_point_grid(self, grid_density,):
+    def generate_point_grid(self, grid_density):
         """
         Initial 3D point grid generation
 

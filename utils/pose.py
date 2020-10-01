@@ -10,13 +10,13 @@ class PoseEstimator:
         self.scale = scale
         self.type = type
 
-    def estimate(self, pc_dsdf, nocs_dsdf, pc_scene, nocs_scene, off_intrinsics, nocs_pred_resized):
+    def estimate(self, pcd_dsdf, nocs_dsdf, pcd_scene, nocs_scene, off_intrinsics, nocs_pred_resized):
         """
         Estimate the pose based on the pose estimator type
         Args:
-            pc_dsdf (torch.Tensor): DeepSDF points cloud (N,3)
+            pcd_dsdf (torch.Tensor): DeepSDF points cloud (N,3)
             nocs_dsdf (torch.Tensor): DeepSDF NOCS (N,3)
-            pc_scene (torch.Tensor): Scene point cloud(N,3)
+            pcd_scene (torch.Tensor): Scene point cloud(N,3)
             nocs_scene (torch.Tensor): Scene NOCS (N,3)
             off_intrinsics (torch.Tensor): Camera intrinsic matrix (3,3)
             nocs_pred_resized (torch.Tensor): NOCS image
@@ -26,11 +26,11 @@ class PoseEstimator:
         """
         if self.type == 'kabsch':
             init_pose = self.init_pose_3d(
-                pc_dsdf, nocs_dsdf, pc_scene, nocs_scene, type='kabsch', scale_model=self.scale
+                pcd_dsdf, nocs_dsdf, pcd_scene, nocs_scene, type='kabsch', scale_model=self.scale
             )
         elif self.type == 'procrustes':
             init_pose = self.init_pose_3d(
-                pc_dsdf, nocs_dsdf, pc_scene, nocs_scene, type='procrustes', scale_model=self.scale
+                pcd_dsdf, nocs_dsdf, pcd_scene, nocs_scene, type='procrustes', scale_model=self.scale
             )
         elif self.type == 'pnp':
             init_pose = self.init_pose_2d(off_intrinsics, nocs_pred_resized, scale_model=self.scale)

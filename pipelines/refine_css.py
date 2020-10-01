@@ -15,6 +15,7 @@ from sdfrenderer.grid import Grid3D
 from utils.pose import PoseEstimator
 import sdfrenderer.deepsdf.workspace as dsdf_ws
 import utils.refinement as rtools
+import utils.visualizer as viztools
 
 # Define seed for reproducibility
 seed = 1
@@ -40,7 +41,7 @@ def refine_css(cfgp, subset_frames=None):
 
     # Setup DeepSDF
     dsdf_path = config.read_cfg_string(cfgp, 'input', 'deepsdf_path', default=None)
-    dsdf, latent_size = dsdf_ws.setup_dsdf(dsdf_path, precision)
+    dsdf, latent_size = dsdf_ws.setup_dsdf(dsdf_path, precision=precision)
     dsdf = dsdf.to(device)
 
     # Load dataset
@@ -126,7 +127,7 @@ def refine_css(cfgp, subset_frames=None):
             crop_size, intrinsics, off_intrinsics = rtools.adjust_intrinsics_crop(
                 K, crop_size, anno['bbox'], max_crop_area
             )
-            pc_crop, pc_crop_rgb = rtools.reproject(crop_bgr, crop_dep, off_intrinsics, filter=False)
+            pcd_crop, pcd_crop_rgb = rtools.reproject(crop_bgr, crop_dep, off_intrinsics, filter=False)
 
             # Use masks from maskrcnn
             if label_type == 'maskrcnn':
@@ -149,7 +150,7 @@ def refine_css(cfgp, subset_frames=None):
             inputs = torch.cat([latent_pred.expand(grid.points.size(0), -1), grid.points],
                                1).to(latent_pred.device, latent_pred.dtype)
             pred_sdf_grid, inv_scale = dsdf(inputs)
-            pc_dsdf, nocs_dsdf, normals_dsdf = grid.get_surface_points(pred_sdf_grid)
+            pcd_dsdf, nocs_dsdf, normals_dsdf = grid.get_surface_points(pred_sdf_grid)
 
             # Reproject NOCS into the scene
             nocs_pred_resized = F.interpolate(nocs_pred.unsqueeze(0), size=crop_dep.shape[:2],
@@ -163,7 +164,7 @@ def refine_css(cfgp, subset_frames=None):
             scale = 2.0  # scale_dsdf.item() * 0.8
             pose_esimator = PoseEstimator(pose_esimator_type, scale)
             init_pose = pose_esimator.estimate(
-                pc_dsdf, nocs_dsdf, nocs_3d_pts, nocs_3d_cls, off_intrinsics, nocs_pred_resized
+                pcd_dsdf, nocs_dsdf, nocs_3d_pts, nocs_3d_cls, off_intrinsics, nocs_pred_resized
             )
 
             if init_pose is None:
@@ -177,7 +178,7 @@ def refine_css(cfgp, subset_frames=None):
             yaw = rtools.roty_in_bev(rot @ np.diag([-1, 1, 1])) + math.pi / 2  # KITTI roty starts at canonical pi/2
 
             # Estimate good height by looking up lowest Y value of reprojected NOCS
-            world_points = ((rot @ (pc_dsdf.detach().cpu().numpy() * scale).T).T + tra)
+            world_points = ((rot @ (pcd_dsdf.detach().cpu().numpy() * scale).T).T + tra)
             proj_world = rtools.project(sample['orig_cam'], world_points)
             L, T = proj_world[:, 0].min(), proj_world[:, 1].min()
             R, B = proj_world[:, 0].max(), proj_world[:, 1].max()
@@ -215,7 +216,7 @@ def refine_css(cfgp, subset_frames=None):
             optimizer.optimize(
                 iters_optim,
                 nocs_pred,
-                pc_crop,
+                pcd_crop,
                 dsdf,
                 grid,
                 intrinsics.detach().to(device, precision),
@@ -225,10 +226,13 @@ def refine_css(cfgp, subset_frames=None):
             )
 
             # Now collect the results from the optimization
-            label_kitti, _, _ = rtools.get_kitti_label(dsdf, grid, params['latent'].to(precision),
+            label_kitti, scaled_points, cam_T = rtools.get_kitti_label(dsdf, grid, params['latent'].to(precision),
                                                        params['scale'].to(precision), params['trans'].to(precision),
                                                        params['yaw'].to(precision), sample['world_to_cam'], anno['bbox'])
             [frame_estimations[key].append(value) for key, value in label_kitti.items()]
+
+            # Visualize the estimated label in 3D
+            #viztools.plot_3d_final(sample['lidar'], cam_T, scaled_points, anno, label_kitti)
 
         # Do not store anything for this frame if we did not process any annotations
         if not frame_annos:
