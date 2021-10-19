@@ -97,6 +97,7 @@ class Bottleneck(nn.Module):
 
 
 def _freeze_module(module):
+    module.eval()
     for param in module.parameters():
         param.requires_grad = False
 
@@ -152,10 +153,15 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
+    def freeze(self):    
         # Freeze first layers
         _freeze_module(self.conv1)
         _freeze_module(self.bn1)
         _freeze_module(self.layer1)
+        
+    def train(self, mode=True):
+        super(ResNet, self).train(mode)
+        freeze()
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
